@@ -88,14 +88,14 @@
     self.floatingButton.layer.borderWidth = 1.5;  
     self.floatingButton.layer.borderColor = [UIColor colorWithRed:0.2 green:0.9 blue:0.4 alpha:0.8].CGColor;  
   
-    // Frosted Glass Blur  
+    // Frosted Glass Blur Effect  
     UIBlurEffect *blurEffect = [UIBlurEffect effectWithStyle:UIBlurEffectStyleDark];  
     UIVisualEffectView *blurView = [[UIVisualEffectView alloc] initWithEffect:blurEffect];  
     blurView.frame = self.floatingButton.bounds;  
     blurView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;  
     [self.floatingButton addSubview:blurView];  
   
-    // Label inside button  
+    // Centered Title Label  
     UILabel *titleLabel = [[UILabel alloc] initWithFrame:self.floatingButton.bounds];  
     titleLabel.text = @"Kwar  
 Nu";  
@@ -121,8 +121,7 @@ Nu";
     btn.center = CGPointMake(btn.center.x + translation.x, btn.center.y + translation.y);  
     [pan setTranslation:CGPointZero inView:btn.superview];  
   
-    if (pan.state == UIGestureRecognizerStateEnded) {  
-        // Snap to edge  
+    if (pan.state == UIPUIGestureRecognizerStateEnded || pan.state == UIGestureRecognizerStateEnded) {  
         CGFloat screenWidth = [UIScreen mainScreen].bounds.size.width;  
         CGFloat targetX = (btn.center.x > screenWidth / 2.0) ? (screenWidth - btn.frame.size.width / 2.0 - 10) : (btn.frame.size.width / 2.0 + 10);  
         [UIView animateWithDuration:0.25 animations:^{  
@@ -166,7 +165,7 @@ Nu";
     self.batteryLabel = [self createMetricLabelAtY:95 title:@"🔋 Battery: --%"];  
     self.thermalLabel = [self createMetricLabelAtY:120 title:@"🌡️ Thermal: Nominal"];  
   
-    // FPS Switch Buttons  
+    // FPS Selector Section  
     UILabel *fpsTitle = [[UILabel alloc] initWithFrame:CGRectMake(15, 150, panelWidth - 30, 18)];  
     fpsTitle.text = @"Target FPS Lock:";  
     fpsTitle.textColor = [UIColor lightTextColor];  
@@ -180,15 +179,13 @@ Nu";
     [self.dashboardPanel addSubview:btn60];  
     [self.dashboardPanel addSubview:btn120];  
   
-    // Battery Saver Toggle  
+    // Feature Toggles  
     UIButton *batteryBtn = [self createActionButton:@"🔋 Battery Saver [OFF]" frame:CGRectMake(15, 215, panelWidth - 30, 32) action:@selector(toggleBatterySaver:)];  
     [self.dashboardPanel addSubview:batteryBtn];  
   
-    // Performance Mode Toggle  
     UIButton *perfBtn = [self createActionButton:@"🚀 Performance Boost" frame:CGRectMake(15, 255, panelWidth - 30, 32) action:@selector(triggerPerformanceBoost)];  
     [self.dashboardPanel addSubview:perfBtn];  
   
-    // Memory Purge Button  
     UIButton *purgeBtn = [self createActionButton:@"🧹 Purge Cache & RAM" frame:CGRectMake(15, 295, panelWidth - 30, 32) action:@selector(purgeMemory)];  
     purgeBtn.backgroundColor = [UIColor colorWithRed:0.8 green:0.2 blue:0.2 alpha:0.4];  
     [self.dashboardPanel addSubview:purgeBtn];  
@@ -223,7 +220,7 @@ Nu";
     self.dashboardPanel.hidden = !self.dashboardPanel.hidden;  
 }  
   
-#pragma mark - Monitoring  
+#pragma mark - Live Monitoring  
   
 - (void)startMonitoring {  
     self.displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(onTick:)];  
@@ -253,7 +250,7 @@ Nu";
     // FPS  
     self.fpsLabel.text = [NSString stringWithFormat:@"📊 FPS: %.1f", _currentFPS];  
   
-    // RAM Usage  
+    // Resident Memory (RAM)  
     struct mach_task_basic_info info;  
     mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;  
     if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &count) == KERN_SUCCESS) {  
@@ -266,7 +263,7 @@ Nu";
     if (battLevel >= 0.0) {  
         self.batteryLabel.text = [NSString stringWithFormat:@"🔋 Battery: %.0f%%", battLevel * 100.0];  
     } else {  
-        self.batteryLabel.text = @"🔋 Battery: Simulator/N/A";  
+        self.batteryLabel.text = @"🔋 Battery: N/A";  
     }  
   
     // Thermal State  
@@ -287,7 +284,7 @@ Nu";
     }  
 }  
   
-#pragma mark - Actions  
+#pragma mark - Actions & Tuning  
   
 - (void)setFPS30 {  
     self.targetFPS = 30;  
