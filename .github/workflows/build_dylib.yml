@@ -1,0 +1,25 @@
+name: Build Kwar Nu Booster Dylib  
+  
+on:  
+  push:  
+    branches: [ "main" ]  
+  workflow_dispatch:  
+  
+jobs:  
+  build:  
+    runs-on: macos-latest  
+  
+    steps:  
+      - name: Checkout Repository  
+        uses: actions/checkout@v4  
+  
+      - name: Compile Dylib  
+        run: |  
+          SDKPATH=$(xcrun --sdk iphoneos --show-sdk-path)  
+          xcrun clang -target arm64-apple-ios12.0 -isysroot "$SDKPATH" -dynamiclib -fobjc-arc -framework Foundation -framework UIKit -framework QuartzCore -framework CoreGraphics -o KwarNuBooster.dylib KwarNuBooster.m  
+  
+      - name: Upload Dylib Artifact  
+        uses: actions/upload-artifact@v4  
+        with:  
+          name: KwarNuBooster-dylib  
+          path: KwarNuBooster.dylib
