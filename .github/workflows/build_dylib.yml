@@ -1,5 +1,4 @@
-
-name: Build Kwar Nu Booster Dylib
+name: Build Kwar Nu Gaming Booster
 
 on:
   push:
@@ -12,25 +11,33 @@ permissions:
 
 jobs:
   build:
-    name: Compile iOS Dynamic Library
+    name: Build iOS ARM64 Dylib
     runs-on: macos-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Verify Source File
+      - name: Check Source File
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
           test -f KwarNuBooster.m
           echo "Source file found."
 
+      - name: Show Xcode and SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+
       - name: Compile Dylib
+        shell: bash
         run: |
           set -euo pipefail
 
           SDKPATH="$(xcrun --sdk iphoneos --show-sdk-path)"
-          echo "Using iOS SDK: $SDKPATH"
 
           xcrun --sdk iphoneos clang \
             -target arm64-apple-ios12.0 \
@@ -40,13 +47,15 @@ jobs:
             -framework Foundation \
             -framework UIKit \
             -framework QuartzCore \
-            -o KwarNuBooster.dylib \
-            KwarNuBooster.m
+            -framework CoreGraphics \
+            -install_name @rpath/KwarNuBooster.dylib \
+            KwarNuBooster.m \
+            -o KwarNuBooster.dylib
 
-          test -f KwarNuBooster.dylib
-          echo "Build completed."
+          test -s KwarNuBooster.dylib
+          echo "Dylib compilation succeeded."
 
-      - name: Upload Dylib Artifact
+      - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: KwarNuBooster-dylib
