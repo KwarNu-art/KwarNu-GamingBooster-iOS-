@@ -1,0 +1,37 @@
+name: Build KwarNu Gaming Booster Dylib  
+  
+on:  
+  push:  
+    branches: [ "main" ]  
+  workflow_dispatch:  
+  
+jobs:  
+  build:  
+    runs-on: macos-14  
+  
+    steps:  
+      - name: Checkout Source Code  
+        uses: actions/checkout@v4  
+  
+      - name: Setup Xcode Environment  
+        run: |  
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer  
+          xcrun --sdk iphoneos --show-sdk-path  
+  
+      - name: Compile Objective-C Dylib (arm64 / arm64e)  
+        run: |  
+          xcrun -sdk iphoneos clang -dynamiclib -arch arm64 -arch arm64e \  
+            -isysroot $(xcrun --sdk iphoneos --show-sdk-path) \  
+            -miphoneos-version-min=13.0 \  
+            -fobjc-arc \  
+            -framework UIKit \  
+            -framework Foundation \  
+            -framework QuartzCore \  
+            -install_name @rpath/KwarNuBooster.dylib \  
+            KwarNuBooster.m -o KwarNuBooster.dylib  
+  
+      - name: Upload Compiled Dylib Artifact  
+        uses: actions/upload-artifact@v4  
+        with:  
+          name: KwarNuBooster-dylib  
+          path: KwarNuBooster.dylib  
