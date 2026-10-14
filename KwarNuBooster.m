@@ -1,28 +1,30 @@
-
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
 #import <mach/mach.h>
 
 @interface KwarNuBooster : NSObject
+
++ (void)start;
 + (void)showBoosterMenu;
-+ (void)updateTick:(CADisplayLink *)link;
 + (void)handlePan:(UIPanGestureRecognizer *)pan;
 + (void)toggleMenu;
-+ (void)applyBoost;
++ (void)refreshStatus;
++ (void)updateTick:(CADisplayLink *)link;
 + (double)getMemoryUsage;
+
 @end
 
 @implementation KwarNuBooster
 
-static UIButton *floatingBtn;
+static UIButton *floatingButton;
 static UIView *menuView;
 static UILabel *fpsLabel;
 static UILabel *infoLabel;
 static CADisplayLink *displayLink;
-static CFTimeInterval lastTime = 0;
-static NSInteger frames = 0;
-static BOOL isMenuOpen = NO;
+static CFTimeInterval lastTime = 0.0;
+static NSInteger frameCount = 0;
+static BOOL menuIsOpen = NO;
 
 + (double)getMemoryUsage {
     struct mach_task_basic_info info = {0};
@@ -35,178 +37,198 @@ static BOOL isMenuOpen = NO;
         &count
     );
 
-    if (result == KERN_SUCCESS) {
-        return (double)info.resident_size / (1024.0 * 1024.0);
+    if (result != KERN_SUCCESS) {
+        return 0.0;
     }
 
-    return 0.0;
+    return (double)info.resident_size / (1024.0 * 1024.0);
 }
 
 + (UIWindow *)activeWindow {
-    UIApplication *app = [UIApplication sharedApplication];
+    UIApplication *application =
+        [UIApplication sharedApplication];
 
     if (@available(iOS 13.0, *)) {
-        for (UIScene *scene in app.connectedScenes) {
+        for (UIScene *scene in application.connectedScenes) {
             if (![scene isKindOfClass:[UIWindowScene class]]) {
                 continue;
             }
 
-            UIWindowScene *windowScene = (UIWindowScene *)scene;
-
-            if (windowScene.activationState !=
+            if (scene.activationState !=
                 UISceneActivationStateForegroundActive) {
                 continue;
             }
+
+            UIWindowScene *windowScene = (UIWindowScene *)scene;
 
             for (UIWindow *window in windowScene.windows) {
                 if (window.isKeyWindow) {
                     return window;
                 }
             }
-
-            if (windowScene.windows.count > 0) {
-                return windowScene.windows.firstObject;
-            }
         }
     }
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    return app.keyWindow;
+    return application.keyWindow;
 #pragma clang diagnostic pop
 }
 
-+ (void)showBoosterMenu {
++ (void)start {
     dispatch_async(dispatch_get_main_queue(), ^{
-        if (floatingBtn != nil) {
-            return;
-        }
-
-        UIWindow *window = [self activeWindow];
-
-        if (window == nil) {
-            return;
-        }
-
-        floatingBtn = [UIButton buttonWithType:UIButtonTypeCustom];
-        floatingBtn.frame = CGRectMake(20, 150, 60, 60);
-        floatingBtn.backgroundColor =
-            [UIColor colorWithRed:0.0
-                            green:0.65
-                             blue:0.35
-                            alpha:0.9];
-        floatingBtn.layer.cornerRadius = 30.0;
-        floatingBtn.layer.borderWidth = 1.5;
-        floatingBtn.layer.borderColor =
-            [UIColor whiteColor].CGColor;
-
-        [floatingBtn setTitle:@"FPS" forState:UIControlStateNormal];
-        floatingBtn.titleLabel.font =
-            [UIFont boldSystemFontOfSize:12.0];
-
-        [floatingBtn addTarget:self
-                        action:@selector(toggleMenu)
-              forControlEvents:UIControlEventTouchUpInside];
-
-        UIPanGestureRecognizer *pan =
-            [[UIPanGestureRecognizer alloc]
-                initWithTarget:self
-                        action:@selector(handlePan:)];
-
-        [floatingBtn addGestureRecognizer:pan];
-        [window addSubview:floatingBtn];
-
-        menuView = [[UIView alloc]
-            initWithFrame:CGRectMake(20, 220, 260, 200)];
-
-        menuView.backgroundColor =
-            [UIColor colorWithRed:0.05
-                            green:0.10
-                             blue:0.15
-                            alpha:0.95];
-
-        menuView.layer.cornerRadius = 16.0;
-        menuView.layer.borderWidth = 1.2;
-        menuView.layer.borderColor =
-            [UIColor colorWithRed:0.0
-                            green:0.8
-                             blue:0.4
-                            alpha:1.0].CGColor;
-
-        menuView.hidden = YES;
-
-        UILabel *title = [[UILabel alloc]
-            initWithFrame:CGRectMake(10, 10, 240, 25)];
-
-        title.text = @"Kwar Nu Gaming Booster";
-        title.textColor =
-            [UIColor colorWithRed:0.0
-                            green:1.0
-                             blue:0.5
-                            alpha:1.0];
-        title.font = [UIFont boldSystemFontOfSize:14.0];
-        title.textAlignment = NSTextAlignmentCenter;
-        [menuView addSubview:title];
-
-        infoLabel = [[UILabel alloc]
-            initWithFrame:CGRectMake(15, 45, 230, 40)];
-
-        infoLabel.text =
-            @"RAM Usage: Calculating...\nStatus: Ready";
-        infoLabel.numberOfLines = 2;
-        infoLabel.textColor = [UIColor whiteColor];
-        infoLabel.font = [UIFont systemFontOfSize:12.0];
-        [menuView addSubview:infoLabel];
-
-        UIButton *boostBtn =
-            [UIButton buttonWithType:UIButtonTypeSystem];
-
-        boostBtn.frame = CGRectMake(15, 95, 230, 35);
-        boostBtn.backgroundColor =
-            [UIColor colorWithRed:0.0
-                            green:0.8
-                             blue:0.4
-                            alpha:1.0];
-
-        [boostBtn setTitle:@"Refresh Status"
-                  forState:UIControlStateNormal];
-        [boostBtn setTitleColor:[UIColor blackColor]
-                       forState:UIControlStateNormal];
-        boostBtn.layer.cornerRadius = 8.0;
-
-        [boostBtn addTarget:self
-                     action:@selector(applyBoost)
-           forControlEvents:UIControlEventTouchUpInside];
-
-        [menuView addSubview:boostBtn];
-
-        UIButton *closeBtn =
-            [UIButton buttonWithType:UIButtonTypeSystem];
-
-        closeBtn.frame = CGRectMake(15, 140, 230, 35);
-        closeBtn.backgroundColor =
-            [UIColor colorWithWhite:0.3 alpha:0.8];
-
-        [closeBtn setTitle:@"Close Menu"
-                  forState:UIControlStateNormal];
-        [closeBtn setTitleColor:[UIColor whiteColor]
-                       forState:UIControlStateNormal];
-        closeBtn.layer.cornerRadius = 8.0;
-
-        [closeBtn addTarget:self
-                     action:@selector(toggleMenu)
-           forControlEvents:UIControlEventTouchUpInside];
-
-        [menuView addSubview:closeBtn];
-        [window addSubview:menuView];
-
-        displayLink =
-            [CADisplayLink displayLinkWithTarget:self
-                                         selector:@selector(updateTick:)];
-
-        [displayLink addToRunLoop:[NSRunLoop mainRunLoop]
-                          forMode:NSRunLoopCommonModes];
+        [self showBoosterMenu];
     });
+}
+
++ (void)showBoosterMenu {
+    if (floatingButton != nil) {
+        return;
+    }
+
+    UIWindow *window = [self activeWindow];
+
+    if (window == nil) {
+        NSLog(@"KwarNu Booster: No active window found.");
+        return;
+    }
+
+    floatingButton =
+        [UIButton buttonWithType:UIButtonTypeCustom];
+
+    floatingButton.frame = CGRectMake(20.0, 150.0, 64.0, 64.0);
+    floatingButton.backgroundColor =
+        [UIColor colorWithRed:0.0
+                        green:0.65
+                         blue:0.35
+                        alpha:0.95];
+
+    floatingButton.layer.cornerRadius = 32.0;
+    floatingButton.layer.borderWidth = 1.5;
+    floatingButton.layer.borderColor =
+        [UIColor whiteColor].CGColor;
+
+    [floatingButton setTitle:@"FPS"
+                    forState:UIControlStateNormal];
+
+    floatingButton.titleLabel.font =
+        [UIFont boldSystemFontOfSize:13.0];
+
+    [floatingButton addTarget:self
+                       action:@selector(toggleMenu)
+             forControlEvents:UIControlEventTouchUpInside];
+
+    UIPanGestureRecognizer *pan =
+        [[UIPanGestureRecognizer alloc]
+            initWithTarget:self
+                    action:@selector(handlePan:)];
+
+    [floatingButton addGestureRecognizer:pan];
+    [window addSubview:floatingButton];
+
+    menuView = [[UIView alloc]
+        initWithFrame:CGRectMake(20.0, 225.0, 260.0, 190.0)];
+
+    menuView.backgroundColor =
+        [UIColor colorWithRed:0.05
+                        green:0.10
+                         blue:0.15
+                        alpha:0.96];
+
+    menuView.layer.cornerRadius = 14.0;
+    menuView.layer.borderWidth = 1.0;
+    menuView.layer.borderColor =
+        [UIColor colorWithRed:0.0
+                        green:0.85
+                         blue:0.45
+                        alpha:1.0].CGColor;
+
+    menuView.hidden = YES;
+
+    UILabel *titleLabel = [[UILabel alloc]
+        initWithFrame:CGRectMake(10.0, 10.0, 240.0, 25.0)];
+
+    titleLabel.text = @"Kwar Nu Gaming Booster";
+    titleLabel.textColor =
+        [UIColor colorWithRed:0.2
+                        green:1.0
+                         blue:0.55
+                        alpha:1.0];
+
+    titleLabel.font = [UIFont boldSystemFontOfSize:14.0];
+    titleLabel.textAlignment = NSTextAlignmentCenter;
+    [menuView addSubview:titleLabel];
+
+    fpsLabel = [[UILabel alloc]
+        initWithFrame:CGRectMake(15.0, 40.0, 230.0, 25.0)];
+
+    fpsLabel.text = @"FPS: Measuring...";
+    fpsLabel.textColor = [UIColor whiteColor];
+    fpsLabel.font = [UIFont systemFontOfSize:12.0];
+    [menuView addSubview:fpsLabel];
+
+    infoLabel = [[UILabel alloc]
+        initWithFrame:CGRectMake(15.0, 68.0, 230.0, 40.0)];
+
+    infoLabel.numberOfLines = 2;
+    infoLabel.textColor = [UIColor whiteColor];
+    infoLabel.font = [UIFont systemFontOfSize:12.0];
+    infoLabel.text = @"RAM Usage: Checking...\nStatus: Ready";
+    [menuView addSubview:infoLabel];
+
+    UIButton *refreshButton =
+        [UIButton buttonWithType:UIButtonTypeSystem];
+
+    refreshButton.frame =
+        CGRectMake(15.0, 115.0, 230.0, 30.0);
+
+    refreshButton.backgroundColor =
+        [UIColor colorWithRed:0.0
+                        green:0.85
+                         blue:0.45
+                        alpha:1.0];
+
+    [refreshButton setTitle:@"Refresh Status"
+                   forState:UIControlStateNormal];
+
+    [refreshButton setTitleColor:[UIColor blackColor]
+                        forState:UIControlStateNormal];
+
+    refreshButton.layer.cornerRadius = 7.0;
+
+    [refreshButton addTarget:self
+                      action:@selector(refreshStatus)
+            forControlEvents:UIControlEventTouchUpInside];
+
+    [menuView addSubview:refreshButton];
+
+    UIButton *closeButton =
+        [UIButton buttonWithType:UIButtonTypeSystem];
+
+    closeButton.frame =
+        CGRectMake(15.0, 152.0, 230.0, 27.0);
+
+    [closeButton setTitle:@"Close Menu"
+                 forState:UIControlStateNormal];
+
+    [closeButton setTitleColor:[UIColor whiteColor]
+                      forState:UIControlStateNormal];
+
+    [closeButton addTarget:self
+                    action:@selector(toggleMenu)
+          forControlEvents:UIControlEventTouchUpInside];
+
+    [menuView addSubview:closeButton];
+    [window addSubview:menuView];
+
+    displayLink =
+        [CADisplayLink displayLinkWithTarget:self
+                                     selector:@selector(updateTick:)];
+
+    [displayLink addToRunLoop:[NSRunLoop mainRunLoop]
+                      forMode:NSRunLoopCommonModes];
+
+    [self refreshStatus];
 }
 
 + (void)handlePan:(UIPanGestureRecognizer *)pan {
@@ -219,7 +241,7 @@ static BOOL isMenuOpen = NO;
 
     CGPoint translation = [pan translationInView:parent];
 
-    CGPoint newCenter = CGPointMake(
+    CGPoint center = CGPointMake(
         view.center.x + translation.x,
         view.center.y + translation.y
     );
@@ -227,20 +249,22 @@ static BOOL isMenuOpen = NO;
     CGFloat halfWidth = view.bounds.size.width / 2.0;
     CGFloat halfHeight = view.bounds.size.height / 2.0;
 
-    newCenter.x = MAX(halfWidth,
-                      MIN(parent.bounds.size.width - halfWidth,
-                          newCenter.x));
+    center.x = MAX(halfWidth,
+        MIN(parent.bounds.size.width - halfWidth, center.x));
 
-    newCenter.y = MAX(halfHeight,
-                      MIN(parent.bounds.size.height - halfHeight,
-                          newCenter.y));
+    center.y = MAX(halfHeight,
+        MIN(parent.bounds.size.height - halfHeight, center.y));
 
-    view.center = newCenter;
-    [pan setTranslation:CGPointZero inView:parent];
+    view.center = center;
 
-    if (isMenuOpen && menuView != nil) {
-        menuView.center =
-            CGPointMake(newCenter.x, newCenter.y + 140);
+    [pan setTranslation:CGPointMake(0.0, 0.0)
+                inView:parent];
+
+    if (menuIsOpen && menuView != nil) {
+        menuView.center = CGPointMake(
+            center.x,
+            center.y + 130.0
+        );
     }
 }
 
@@ -249,61 +273,51 @@ static BOOL isMenuOpen = NO;
         return;
     }
 
-    isMenuOpen = !isMenuOpen;
-    menuView.hidden = !isMenuOpen;
+    menuIsOpen = !menuIsOpen;
+    menuView.hidden = !menuIsOpen;
 
-    if (isMenuOpen) {
-        double ram = [self getMemoryUsage];
+    if (menuIsOpen) {
+        menuView.center = CGPointMake(
+            floatingButton.center.x,
+            floatingButton.center.y + 130.0
+        );
 
-        infoLabel.text = [NSString stringWithFormat:
-            @"RAM Usage: %.1f MB\nStatus: Ready", ram];
+        [self refreshStatus];
     }
 }
 
-+ (void)applyBoost {
++ (void)refreshStatus {
     double ram = [self getMemoryUsage];
 
     infoLabel.text = [NSString stringWithFormat:
-        @"RAM Usage: %.1f MB\nStatus: Refreshed", ram];
+        @"RAM Usage: %.1f MB\nStatus: Monitoring", ram];
 }
 
 + (void)updateTick:(CADisplayLink *)link {
-    if (lastTime == 0) {
+    if (lastTime == 0.0) {
         lastTime = link.timestamp;
         return;
     }
 
-    frames++;
+    frameCount++;
 
     CFTimeInterval elapsed = link.timestamp - lastTime;
 
     if (elapsed >= 1.0) {
-        double currentFPS = (double)frames / elapsed;
-        frames = 0;
+        double fps = (double)frameCount / elapsed;
+
+        frameCount = 0;
         lastTime = link.timestamp;
 
-        if (fpsLabel != nil) {
-            fpsLabel.text = [NSString stringWithFormat:
-                @"%.0f FPS", currentFPS];
-        }
+        NSString *fpsText = [NSString stringWithFormat:
+            @"FPS: %.0f", fps];
 
-        [floatingBtn setTitle:
-            [NSString stringWithFormat:@"%.0f FPS", currentFPS]
-                      forState:UIControlStateNormal];
+        fpsLabel.text = fpsText;
+
+        [floatingButton setTitle:
+            [NSString stringWithFormat:@"%.0f FPS", fps]
+                        forState:UIControlStateNormal];
     }
 }
 
 @end
-
-__attribute__((constructor))
-static void init_booster(void) {
-    @autoreleasepool {
-        [[NSNotificationCenter defaultCenter]
-            addObserverForName:UIApplicationDidFinishLaunchingNotification
-                        object:nil
-                         queue:[NSOperationQueue mainQueue]
-                    usingBlock:^(__unused NSNotification *note) {
-            [KwarNuBooster showBoosterMenu];
-        }];
-    }
-}
